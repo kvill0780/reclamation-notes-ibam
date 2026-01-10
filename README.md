@@ -2,6 +2,17 @@
 
 Application web de dématérialisation des réclamations de notes pour l'Institut Burkinabé des Arts et Métiers.
 
+## ⚙️ Configuration
+
+**Avant de lancer l'application, configurez les fichiers :**
+
+1. Copiez `reclamation/src/main/resources/application-example.yml` → `application.yml`
+2. Copiez `reclamation/src/main/resources/data-example.sql` → `data.sql`
+3. Modifiez les valeurs :
+   - **DB** : `username`, `password`
+   - **JWT** : `secret` (32+ caractères)
+   - **Hash** : Utilisez `HashGen.java` pour les mots de passe
+
 ## 🚀 Technologies
 
 **Backend :**
