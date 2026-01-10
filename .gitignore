@@ -1,0 +1,33 @@
+# Backend (Spring Boot)
+reclamation/target/
+reclamation/.mvn/
+reclamation/mvnw
+reclamation/mvnw.cmd
+*.class
+*.jar
+*.war
+*.ear
+*.logs
+*.log
+
+# Frontend (React)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Autres
+*.tmp
+*.temp
