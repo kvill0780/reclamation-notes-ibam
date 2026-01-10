@@ -10,6 +10,12 @@ reclamation/mvnw.cmd
 *.logs
 *.log
 
+# Configuration sensible
+reclamation/src/main/resources/application.yml
+reclamation/src/main/resources/application-*.yml
+!reclamation/src/main/resources/application-example.yml
+reclamation/src/main/resources/data.sql
+
 # Frontend (React)
 frontend/node_modules/
 frontend/dist/
