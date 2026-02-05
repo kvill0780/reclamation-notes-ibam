@@ -30,7 +30,7 @@ Application web de dématérialisation des réclamations de notes pour l'Institu
 
 - **Étudiants** : Consultation notes, soumission réclamations
 - **Scolarité** : Vérification recevabilité, validation
-- **DA** : Gestion périodes, imputation enseignants
+- **DA** : Gestion périodes, imputation enseignants (avec suggestion automatique)
 - **Enseignants** : Analyse réclamations, proposition notes
 
 ## 🛠️ Installation
@@ -54,12 +54,18 @@ SOUMISE → TRANSMISE_DA → IMPUTEE → ACCEPTEE/REFUSEE → APPLIQUEE/REJETEE
 
 ## 👥 Comptes de test
 
-- **Étudiant** : jean.dupont@ibam.ma
-- **Enseignant** : ahmed.benali@ibam.ma  
-- **Scolarité** : omar.tazi@ibam.ma
-- **DA** : rachid.bennani@ibam.ma
+- **Étudiant** : jean.dupont@ibam.ma (quelques réclamations)
+- **Enseignant** : yaya.traore@ibam.ma ⭐ **RECOMMANDÉ** - 5 demandes avec statuts variés
+- **Scolarité** : omar.tazi@ibam.ma (toutes les demandes)
+- **DA** : rachid.bennani@ibam.ma (gestion complète + suggestions d'imputation)
 
 *Mot de passe* : `password123`
+
+## ✨ Améliorations récentes
+
+- **DA** : Affichage de l'enseignant responsable sur les cartes pour faciliter l'imputation
+- **Données de test** : Yaya Traoré dispose de 5 demandes avec différents statuts
+- **Interface** : Distinction claire entre enseignant responsable et enseignant imputé
 
 ## 📄 Licence
 

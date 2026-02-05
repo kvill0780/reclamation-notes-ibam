@@ -1,18 +1,36 @@
 package com.ibam.reclamation.dto;
 
 import com.ibam.reclamation.entity.User;
-import lombok.Getter;
+import com.ibam.reclamation.security.RoleEnum;
 
-@Getter
 public class UserPrincipal {
-
-    private final Long id;
-    private final String email;
-    private final String role;
-
+    private final User user;
+    
     public UserPrincipal(User user) {
-        this.id = user.getId();
-        this.email = user.getEmail();
-        this.role = user.getRole().name();
+        this.user = user;
+    }
+    
+    public User getUser() {
+        return user;
+    }
+    
+    public Long getId() {
+        return user.getId();
+    }
+    
+    public String getEmail() {
+        return user.getEmail();
+    }
+    
+    public RoleEnum getRole() {
+        return user.getRole();
+    }
+    
+    public String getNom() {
+        return user.getNom();
+    }
+    
+    public String getPrenom() {
+        return user.getPrenom();
     }
 }

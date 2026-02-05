@@ -35,6 +35,11 @@ public class DemandeResponse {
     private String matiereCode;
     private String semestre;
 
+    // Enseignant responsable de la matière (pour aider le DA dans l'imputation)
+    private Long enseignantResponsableId;
+    private String enseignantResponsableNom;
+    private String enseignantResponsablePrenom;
+    
     // Enseignant imputé (peut être null)
     private Long enseignantImputeId;
     private String enseignantImputeNom;
@@ -80,6 +85,13 @@ public class DemandeResponse {
                         .matiereCode(demande.getNote().getEnseignement().getMatiere().getCode())
                         .semestre(demande.getNote().getEnseignement().getSemestre().name());
             }
+        }
+
+        // Enseignant responsable de la matière
+        if (demande.getNote() != null && demande.getNote().getEnseignantResponsable() != null) {
+            builder.enseignantResponsableId(demande.getNote().getEnseignantResponsable().getId())
+                    .enseignantResponsableNom(demande.getNote().getEnseignantResponsable().getNom())
+                    .enseignantResponsablePrenom(demande.getNote().getEnseignantResponsable().getPrenom());
         }
 
         // Enseignant imputé (optionnel)

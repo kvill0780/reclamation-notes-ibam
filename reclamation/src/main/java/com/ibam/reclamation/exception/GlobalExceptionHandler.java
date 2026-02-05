@@ -100,8 +100,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericException(
             Exception ex, HttpServletRequest request) {
+        ex.printStackTrace(); // Affiche l'erreur complète dans les logs
         return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Erreur serveur",
-                "Une erreur interne s'est produite", request);
+                ex.getMessage() != null ? ex.getMessage() : "Une erreur interne s'est produite", request);
     }
 
     // --- Méthode utilitaire pour construire les réponses ---

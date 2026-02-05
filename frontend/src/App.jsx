@@ -280,8 +280,8 @@ function Login() {
                 </form>
                 <div className="demo-accounts">
                     <p>Comptes de test :</p>
-                    <button onClick={() => demo('jean.dupont@ibam.ma')}>Étudiant</button>
-                    <button onClick={() => demo('ahmed.benali@ibam.ma')}>Enseignant</button>
+                    <button onClick={() => demo('joel.soulama@ibam.ma')}>Étudiant</button>
+                    <button onClick={() => demo('yaya.traore@ibam.ma')}>Enseignant</button>
                     <button onClick={() => demo('omar.tazi@ibam.ma')}>Scolarité</button>
                     <button onClick={() => demo('rachid.bennani@ibam.ma')}>DA</button>
                 </div>
@@ -412,25 +412,6 @@ function Dashboard() {
             fetchData();
         } catch (e) {
             ErrorHandler.log(e, 'Bulk imputation');
-            notifyError(ErrorHandler.getDisplayMessage(e));
-        }
-    };
-
-    const handleBulkApplication = async () => {
-        if (selectedReclamations.length === 0) {
-            notifyError('Aucune réclamation sélectionnée');
-            return;
-        }
-        try {
-            for (const id of selectedReclamations) {
-                await reclamationApi.appliquer(id, null);
-            }
-            success(`${selectedReclamations.length} décisions appliquées`);
-            setSelectedReclamations([]);
-            setShowBulkActions(false);
-            fetchData();
-        } catch (e) {
-            ErrorHandler.log(e, 'Bulk application');
             notifyError(ErrorHandler.getDisplayMessage(e));
         }
     };
@@ -676,26 +657,6 @@ function Dashboard() {
                     </div>
                 )}
 
-                {/* Actions en lot pour Scolarité */}
-                {role === 'SCOLARITE' && activeTab === 'decisions' && (
-                    <div className="bulk-actions">
-                        <button 
-                            className="btn-secondary"
-                            onClick={() => setShowBulkActions(!showBulkActions)}
-                        >
-                            {showBulkActions ? 'Annuler sélection' : 'Sélection multiple'}
-                        </button>
-                        {showBulkActions && selectedReclamations.length > 0 && (
-                            <button 
-                                className="btn-primary"
-                                onClick={handleBulkApplication}
-                            >
-                                Appliquer {selectedReclamations.length} décision(s)
-                            </button>
-                        )}
-                    </div>
-                )}
-
                 {/* Domaines pour Enseignant */}
                 {role === 'ENSEIGNANT' && (
                     <div className="tabs">
@@ -831,7 +792,7 @@ function Dashboard() {
                             className={notesSubTab === 'L3' ? 'sub-tab-active' : ''}
                             onClick={() => setNotesSubTab('L3')}
                         >
-                            Licence 3 
+                            Licence 3   
                         </button>
                     </div>
                 )}
@@ -873,20 +834,9 @@ function Dashboard() {
                                                         {notesSemestre.map(n => (
                                                             <tr key={n.id}>
                                                                 <td>{n.matiereNom}</td>
-                                                <td className={n.valeur < 10 ? 'note-fail' : 'note-pass'}>
-                                                    {reclamations.some(r => r.noteId === n.id && r.statut === 'APPLIQUEE') ? (
-                                                        <span>
-                                                            <span style={{ textDecoration: 'line-through', color: '#999' }}>{n.valeur}</span>
-                                                            {' '}
-                                                            <span style={{ fontWeight: 'bold', color: '#28a745' }}>
-                                                                {reclamations.find(r => r.noteId === n.id && r.statut === 'APPLIQUEE')?.nouvelleNoteProposee}
-                                                            </span>
-                                                            /20
-                                                        </span>
-                                                    ) : (
-                                                        `${n.valeur}/20`
-                                                    )}
-                                                </td>
+                                                                <td className={n.valeur < 10 ? 'note-fail' : 'note-pass'}>
+                                                                    {n.valeur}/20
+                                                                </td>
                                                                 <td>
                                                                     {notesSubTab === user?.niveau ? (
                                                                         <button 
@@ -973,10 +923,7 @@ function Dashboard() {
                                             role={role}
                                             onClick={() => setSelected(r)} 
                                             onQuickAction={handleQuickAction}
-                                            isSelectable={(
-                                                (role === 'DA' && activeTab === 'transmises' && showBulkActions && r.statut === 'TRANSMISE_DA') ||
-                                                (role === 'SCOLARITE' && activeTab === 'decisions' && showBulkActions && ['ACCEPTEE', 'REFUSEE'].includes(r.statut))
-                                            )}
+                                            isSelectable={role === 'DA' && activeTab === 'transmises' && showBulkActions && r.statut === 'TRANSMISE_DA'}
                                             isSelected={selectedReclamations.includes(r.id)}
                                             onToggleSelect={toggleReclamationSelection}
                                         />

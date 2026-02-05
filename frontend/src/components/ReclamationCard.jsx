@@ -24,6 +24,12 @@ export function ReclamationCard({ r, onClick, role, onQuickAction, isSelectable,
             <div className="card-content" onClick={onClick} style={{ cursor: 'pointer' }}>
                 <p><strong>Note:</strong> {r.noteValeur}/20</p>
                 <p><strong>Étudiant:</strong> {r.etudiantPrenom} {r.etudiantNom}</p>
+                {role === 'DA' && r.enseignantResponsableNom && (
+                    <p><strong>Enseignant responsable:</strong> {r.enseignantResponsablePrenom} {r.enseignantResponsableNom}</p>
+                )}
+                {r.enseignantImputeNom && (
+                    <p><strong>Imputé à:</strong> {r.enseignantImputePrenom} {r.enseignantImputeNom}</p>
+                )}
                 {r.nouvelleNoteProposee && <p><strong>Note proposée:</strong> {r.nouvelleNoteProposee}/20</p>}
                 {role === 'ETUDIANT' && r.statut === 'APPLIQUEE' && r.commentaireEnseignant && (
                     <div className="comments-section">
