@@ -395,6 +395,96 @@ body {
     resize: vertical;
 }
 
+.reclamation-create-form {
+    padding: 18px 20px 20px;
+}
+
+.selected-note-card {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px 14px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+}
+
+.selected-note-card p {
+    margin: 0;
+    font-size: 13px;
+}
+
+.field-hint {
+    color: #6b7280;
+    font-size: 12px;
+    margin-top: 6px;
+}
+
+.field-error {
+    color: #b91c1c;
+    font-size: 12px;
+    margin-top: 4px;
+    font-weight: 600;
+}
+
+.input-error {
+    border-color: #ef4444 !important;
+    background: #fff5f5;
+}
+
+.expected-note-feedback {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.expected-note-feedback.positive {
+    color: #0f766e;
+}
+
+.expected-note-feedback.negative {
+    color: #1d4ed8;
+}
+
+.field-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.field-meta .field-hint {
+    margin: 6px 0 0;
+}
+
+.char-count {
+    margin-top: 6px;
+    color: #6b7280;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.file-upload-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-pill {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #1f2937;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    padding: 6px 10px;
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .form-actions {
     display: flex;
     gap: 10px;

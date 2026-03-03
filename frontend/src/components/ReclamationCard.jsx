@@ -30,7 +30,7 @@ export function ReclamationCard({ r, onClick, role, onQuickAction, isSelectable,
                 {r.enseignantImputeNom && (
                     <p><strong>Imputé à:</strong> {r.enseignantImputePrenom} {r.enseignantImputeNom}</p>
                 )}
-                {r.nouvelleNoteProposee && <p><strong>Note proposée:</strong> {r.nouvelleNoteProposee}/20</p>}
+                {r.noteAttendue != null && <p><strong>Note attendue:</strong> {r.noteAttendue}/20</p>}
                 {role === 'ETUDIANT' && r.statut === 'APPLIQUEE' && r.commentaireEnseignant && (
                     <div className="comments-section">
                         <p><strong>Commentaire enseignant:</strong> {r.commentaireEnseignant}</p>

@@ -46,7 +46,7 @@ public class DemandeReclamation {
 
     @Size(max = 500, message = "Le commentaire ne peut pas dépasser 500 caractères")
     private String commentaireScolarite;
-    
+
     @Size(max = 500, message = "Le commentaire ne peut pas dépasser 500 caractères")
     private String commentaireEnseignant;
 
@@ -56,8 +56,9 @@ public class DemandeReclamation {
     @Column(name = "justificatif_type")
     private String justificatifType;
 
-    @Column(name = "nouvelle_note_proposee")
-    private Double nouvelleNoteProposee;
+    // Note attendue par l'étudiant (saisie à la soumission)
+    @Column(name = "note_attendue")
+    private Double noteAttendue;
 
     @Lob
     @Column(name = "justificatif_data")
@@ -76,14 +77,18 @@ public class DemandeReclamation {
     @JoinColumn(name = "enseignant_impute_id")
     private User enseignantImpute;
 
-    public static DemandeReclamation soumettre(User etudiant, Note note, String description, 
-                                             String justificatifNom, String justificatifType, byte[] justificatifData) {
+    public static DemandeReclamation soumettre(User etudiant, Note note, String description,
+            Double noteAttendue,
+            String justificatifNom, String justificatifType, byte[] justificatifData) {
 
         if (etudiant == null || note == null) {
             throw new IllegalArgumentException("Étudiant et note obligatoires");
         }
         if (description == null || description.isBlank()) {
             throw new DescriptionObligatoireException("La description est obligatoire");
+        }
+        if (noteAttendue == null || noteAttendue < 0 || noteAttendue > 20) {
+            throw new IllegalArgumentException("La note attendue est obligatoire et doit être entre 0 et 20");
         }
         if (justificatifData == null || justificatifData.length == 0) {
             throw new IllegalArgumentException("Le justificatif est obligatoire");
@@ -96,6 +101,7 @@ public class DemandeReclamation {
         demande.note = note;
         demande.etudiant = etudiant;
         demande.description = description;
+        demande.noteAttendue = noteAttendue;
         demande.justificatifNom = justificatifNom;
         demande.justificatifType = justificatifType;
         demande.justificatifData = justificatifData;
@@ -109,7 +115,7 @@ public class DemandeReclamation {
     public void verifierRecevabilite(boolean recevable, String commentaire) {
         if (statut != StatutDemande.SOUMISE)
             throw new IllegalStateException("Demande déjà traitée");
-        
+
         // Commentaire obligatoire SEULEMENT si rejetée
         if (!recevable && (commentaire == null || commentaire.isBlank()))
             throw new CommentaireObligatoireException("Le commentaire est obligatoire pour expliquer le rejet");
@@ -137,34 +143,32 @@ public class DemandeReclamation {
         this.dateDerniereAction = LocalDateTime.now();
     }
 
-    public void analyser(boolean acceptee, String commentaire, Double nouvelleNoteProposee) {
+    public void analyser(boolean acceptee, String commentaire) {
         if (this.statut != StatutDemande.IMPUTEE) {
             throw new IllegalStateException("La demande doit être imputée avant analyse");
         }
         if (commentaire == null || commentaire.isBlank()) {
             throw new CommentaireObligatoireException("Le commentaire d'analyse est obligatoire");
         }
-        if (acceptee && (nouvelleNoteProposee == null || nouvelleNoteProposee < 0 || nouvelleNoteProposee > 20)) {
-            throw new IllegalArgumentException("Une nouvelle note valide (0-20) est obligatoire si acceptée");
-        }
+        // L'enseignant accepte ou refuse — la note à appliquer est celle soumise par
+        // l'étudiant (noteAttendue)
 
         this.commentaireEnseignant = commentaire;
-        this.nouvelleNoteProposee = nouvelleNoteProposee;
         this.statut = acceptee ? StatutDemande.ACCEPTEE : StatutDemande.REFUSEE;
         this.dateDerniereAction = LocalDateTime.now();
     }
 
-    public void appliquerDecision(Double nouvelleNote) {
+    public void appliquerDecision() {
         if (this.statut != StatutDemande.ACCEPTEE && this.statut != StatutDemande.REFUSEE) {
             throw new IllegalStateException("Seules les demandes ACCEPTEES ou REFUSEES peuvent être appliquées");
         }
-        
-        // Si la demande est acceptée → appliquer automatiquement la note proposée par l'enseignant
+
+        // Si acceptée → appliquer la note attendue soumise par l'étudiant
         if (this.statut == StatutDemande.ACCEPTEE) {
-            if (this.nouvelleNoteProposee == null) {
-                throw new IllegalStateException("Aucune note proposée trouvée pour cette demande acceptée");
+            if (this.noteAttendue == null) {
+                throw new IllegalStateException("Aucune note attendue trouvée pour cette demande acceptée");
             }
-            this.note.modifierValeur(this.nouvelleNoteProposee);
+            this.note.modifierValeur(this.noteAttendue);
         }
         // Si refusée → ne rien faire, la note reste inchangée
 

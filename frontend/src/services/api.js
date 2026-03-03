@@ -70,8 +70,13 @@ export const reclamationApi = {
     }),
 
     // Actions par rôle
-    verifier: (id, recevable, commentaire) =>
-        api.put(`/api/reclamations/${id}/verifier?recevable=${recevable}&commentaire=${encodeURIComponent(commentaire)}`),
+    verifier: (id, recevable, commentaire) => {
+        const params = new URLSearchParams({ recevable: String(recevable) });
+        if (commentaire && commentaire.trim()) {
+            params.append('commentaire', commentaire.trim());
+        }
+        return api.put(`/api/reclamations/${id}/verifier?${params.toString()}`);
+    },
     
     imputer: (id, enseignantId) =>
         api.put(`/api/reclamations/${id}/imputer?enseignantId=${enseignantId}`),
@@ -82,23 +87,15 @@ export const reclamationApi = {
     imputerLot: (demandeIds) =>
         api.put('/api/reclamations/imputer-lot', demandeIds),
     
-    analyser: (id, acceptee, commentaire, nouvelleNoteProposee) => {
-        let url = `/api/reclamations/${id}/analyser?acceptee=${acceptee}&commentaire=${encodeURIComponent(commentaire)}`;
-        if (nouvelleNoteProposee) {
-            url += `&nouvelleNoteProposee=${nouvelleNoteProposee}`;
-        }
-        return api.put(url);
-    },
-    
-    appliquer: (id, nouvelleNote) => {
-        const url = nouvelleNote
-            ? `/api/reclamations/${id}/appliquer?nouvelleNote=${nouvelleNote}`
-            : `/api/reclamations/${id}/appliquer`;
-        return api.put(url);
-    },
+    analyser: (id, acceptee, commentaire) =>
+        api.put(`/api/reclamations/${id}/analyser?acceptee=${acceptee}&commentaire=${encodeURIComponent(commentaire)}`),
+
+    appliquer: (id) =>
+        api.put(`/api/reclamations/${id}/appliquer`),
 
     // Ressources
     getEnseignants: () => api.get('/api/reclamations/enseignants'),
+    getEnseignantsImputables: (id) => api.get(`/api/reclamations/${id}/enseignants-imputables`),
 };
 
 // API pour périodes

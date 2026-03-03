@@ -1,8 +1,5 @@
 # Backend (Spring Boot)
 reclamation/target/
-reclamation/.mvn/
-reclamation/mvnw
-reclamation/mvnw.cmd
 *.class
 *.jar
 *.war

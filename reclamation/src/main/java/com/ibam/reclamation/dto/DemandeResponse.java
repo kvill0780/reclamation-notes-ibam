@@ -39,7 +39,7 @@ public class DemandeResponse {
     private Long enseignantResponsableId;
     private String enseignantResponsableNom;
     private String enseignantResponsablePrenom;
-    
+
     // Enseignant imputé (peut être null)
     private Long enseignantImputeId;
     private String enseignantImputeNom;
@@ -48,9 +48,9 @@ public class DemandeResponse {
     // Justificatif
     private String justificatifNom;
     private boolean hasJustificatif;
-    
-    // Note proposée par l'enseignant
-    private Double nouvelleNoteProposee;
+
+    // Note attendue soumise par l'étudiant à la création de la demande
+    private Double noteAttendue;
 
     /**
      * Convertit une entité DemandeReclamation en DTO
@@ -79,8 +79,8 @@ public class DemandeResponse {
                     .noteValeur(demande.getNote().getValeur());
 
             // Accès à la matière via l'enseignement
-            if (demande.getNote().getEnseignement() != null && 
-                demande.getNote().getEnseignement().getMatiere() != null) {
+            if (demande.getNote().getEnseignement() != null &&
+                    demande.getNote().getEnseignement().getMatiere() != null) {
                 builder.matiereNom(demande.getNote().getEnseignement().getMatiere().getNom())
                         .matiereCode(demande.getNote().getEnseignement().getMatiere().getCode())
                         .semestre(demande.getNote().getEnseignement().getSemestre().name());
@@ -101,10 +101,10 @@ public class DemandeResponse {
                     .enseignantImputePrenom(demande.getEnseignantImpute().getPrenom());
         }
 
-        // Justificatif
+        // Justificatif et note attendue
         builder.justificatifNom(demande.getJustificatifNom())
                 .hasJustificatif(demande.getJustificatifData() != null && demande.getJustificatifData().length > 0)
-                .nouvelleNoteProposee(demande.getNouvelleNoteProposee());
+                .noteAttendue(demande.getNoteAttendue());
 
         return builder.build();
     }

@@ -28,10 +28,10 @@ Application web de dématérialisation des réclamations de notes pour l'Institu
 
 ## Fonctionnalités
 
-- **Étudiants** : Consultation notes, soumission réclamations
-- **Scolarité** : Vérification recevabilité, validation
+- **Étudiants** : Consultation notes, soumission réclamations avec **justificatif** + **note attendue**
+- **Scolarité** : Vérification recevabilité, validation/rejet
 - **DA** : Gestion périodes, imputation enseignants (avec suggestion automatique)
-- **Enseignants** : Analyse réclamations, proposition notes
+- **Enseignants** : Analyse réclamations (acceptation/refus avec commentaire, **sans saisie de nouvelle note**)
 
 ## Installation
 
@@ -50,7 +50,37 @@ npm run dev
 
 ## Workflow
 
-SOUMISE → TRANSMISE_DA → IMPUTEE → ACCEPTEE/REFUSEE → APPLIQUEE/REJETEE
+SOUMISE (avec justificatif + note attendue) → TRANSMISE_DA → IMPUTEE → ACCEPTEE/REFUSEE → APPLIQUEE/REJETEE
+
+### Détail du workflow post-délibération
+
+1. **Étudiant**
+   - Sélectionne une note déjà publiée
+   - Renseigne une **description**
+   - Renseigne la **note attendue** (`0` à `20`)
+   - Joint un **justificatif** (PDF/JPG/PNG)
+2. **Scolarité**
+   - Vérifie la recevabilité
+   - Si recevable: `SOUMISE` → `TRANSMISE_DA`
+   - Sinon: `SOUMISE` → `REJETEE` (commentaire obligatoire)
+3. **DA**
+   - Impute la demande à un enseignant (manuel ou automatique)
+   - `TRANSMISE_DA` → `IMPUTEE`
+4. **Enseignant**
+   - Analyse et commente
+   - **N’entre pas de nouvelle note**
+   - `IMPUTEE` → `ACCEPTEE` ou `REFUSEE`
+5. **Application**
+   - Si `ACCEPTEE`, la note appliquée est la **note attendue par l’étudiant**
+   - Si `REFUSEE`, la note reste inchangée
+   - Statut final: `APPLIQUEE`
+
+### Règles métier
+
+- Une seule réclamation par couple `(étudiant, note)`.
+- `noteAttendue` est obligatoire et doit être comprise entre `0` et `20`.
+- Le justificatif est obligatoire à la soumission.
+- Le commentaire enseignant est obligatoire lors de l’analyse.
 
 ## Comptes de test
 

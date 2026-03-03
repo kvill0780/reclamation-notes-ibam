@@ -1,12 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import api, { authApi, reclamationApi, notesApi, periodeApi } from './services/api';
+import { reclamationApi, notesApi, periodeApi } from './services/api';
 import { useNotifications, NotificationContainer } from './notifications.jsx';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { Navbar } from './components/Navbar.jsx';
 import { ReclamationCard } from './components/ReclamationCard.jsx';
 import { ErrorHandler } from './utils/errorHandler.js';
-import { ReclamationStatus } from './utils/reclamationStatus.js';
 
 // ============ PAGES ============
 function GestionPeriodes() {
@@ -294,7 +293,7 @@ function Dashboard() {
     const { user } = useAuth();
     const navigate = useNavigate();
     const role = user?.role?.replace('ROLE_', '');
-    const { notifications, success, error: notifyError, warning } = useNotifications();
+    const { notifications, success, error: notifyError } = useNotifications();
 
     const [reclamations, setReclamations] = useState([]);
     const [notes, setNotes] = useState([]);
@@ -317,16 +316,22 @@ function Dashboard() {
     // Form states
     const [noteId, setNoteId] = useState('');
     const [description, setDescription] = useState('');
+    const [noteAttendue, setNoteAttendue] = useState('');
     const [justificatif, setJustificatif] = useState(null);
     const [commentaire, setCommentaire] = useState('');
-    const [nouvelleNote, setNouvelleNote] = useState('');
-    const [nouvelleNoteProposee, setNouvelleNoteProposee] = useState('');
     const [enseignantId, setEnseignantId] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [createLoading, setCreateLoading] = useState(false);
     const [periodeActive, setPeriodeActive] = useState(null);
     const [selectedReclamations, setSelectedReclamations] = useState([]);
     const [showBulkActions, setShowBulkActions] = useState(false);
+    const selectedNote = notes.find(n => String(n.id) === String(noteId));
+    const noteAttendueValue = noteAttendue === '' ? null : Number(noteAttendue);
+    const noteAttendueValid = noteAttendue === '' ||
+        (!Number.isNaN(noteAttendueValue) && noteAttendueValue >= 0 && noteAttendueValue <= 20);
+    const noteDifference = selectedNote && noteAttendueValue != null && !Number.isNaN(noteAttendueValue)
+        ? (noteAttendueValue - Number(selectedNote.valeur)).toFixed(2)
+        : null;
 
     const checkPeriodeActive = async () => {
         try {
@@ -335,6 +340,15 @@ function Dashboard() {
         } catch (e) {
             console.error('Erreur période:', e);
         }
+    };
+
+    const openCreateForm = (preselectedNoteId = '') => {
+        setError('');
+        setDescription('');
+        setNoteAttendue('');
+        setJustificatif(null);
+        setNoteId(preselectedNoteId ? String(preselectedNoteId) : '');
+        setShowForm(true);
     };
 
     const fetchPeriodes = async () => {
@@ -371,7 +385,7 @@ function Dashboard() {
                     setSelected(reclamation);
                     return;
                 case 'appliquer':
-                    await reclamationApi.appliquer(reclamation.id, reclamation.nouvelleNoteProposee);
+                    await reclamationApi.appliquer(reclamation.id);
                     success('Décision appliquée');
                     break;
                 case 'editer':
@@ -405,8 +419,18 @@ function Dashboard() {
             return;
         }
         try {
-            await reclamationApi.imputerLot(selectedReclamations);
-            success(`${selectedReclamations.length} réclamations imputées`);
+            const { data } = await reclamationApi.imputerLot(selectedReclamations);
+            if (data.successCount > 0) {
+                success(`${data.successCount} réclamation(s) imputée(s)`);
+            }
+            if (data.failedCount > 0) {
+                notifyError(
+                    `${data.failedCount} échec(s): ${data.errors
+                        .slice(0, 2)
+                        .map(err => `#${err.id} (${err.message})`)
+                        .join(', ')}`
+                );
+            }
             setSelectedReclamations([]);
             setShowBulkActions(false);
             fetchData();
@@ -433,10 +457,6 @@ function Dashboard() {
                 const n = await notesApi.getMesNotes();
                 setNotes(n.data);
             }
-            if (role === 'DA') {
-                const e = await reclamationApi.getEnseignants();
-                setEnseignants(e.data);
-            }
         } catch (e) {
             ErrorHandler.log(e, 'Data fetch');
             setError(ErrorHandler.getDisplayMessage(e));
@@ -450,10 +470,47 @@ function Dashboard() {
         checkPeriodeActive();
     }, []);
 
+    useEffect(() => {
+        const loadEnseignantsImputables = async () => {
+            if (role !== 'DA' || !selected || selected.statut !== 'TRANSMISE_DA') {
+                setEnseignants([]);
+                setEnseignantId('');
+                return;
+            }
+            try {
+                const { data } = await reclamationApi.getEnseignantsImputables(selected.id);
+                setEnseignants(data);
+                if (data.length === 1) {
+                    setEnseignantId(String(data[0].id));
+                }
+            } catch (e) {
+                ErrorHandler.log(e, 'Load eligible enseignants');
+                notifyError(ErrorHandler.getDisplayMessage(e));
+                setEnseignants([]);
+                setEnseignantId('');
+            }
+        };
+
+        loadEnseignantsImputables();
+    }, [role, selected]);
+
     const handleCreate = async (e) => {
         e.preventDefault();
-        if (!noteId || !description.trim() || !justificatif) {
+        if (!noteId || !description.trim() || noteAttendue === '' || !justificatif) {
             setError('Tous les champs sont obligatoires');
+            return;
+        }
+        if (!noteAttendueValid) {
+            setError('La note attendue doit être entre 0 et 20');
+            return;
+        }
+        if (justificatif.size > 5 * 1024 * 1024) {
+            setError('Le justificatif ne doit pas dépasser 5MB');
+            return;
+        }
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+        if (!allowedTypes.includes(justificatif.type)) {
+            setError('Formats autorisés: PDF, JPEG, PNG');
             return;
         }
 
@@ -463,6 +520,7 @@ function Dashboard() {
             const formData = new FormData();
             formData.append('noteId', noteId);
             formData.append('description', description.trim());
+            formData.append('noteAttendue', noteAttendue);
             formData.append('justificatif', justificatif);
             
             await reclamationApi.create(formData);
@@ -470,6 +528,7 @@ function Dashboard() {
             setShowForm(false);
             setNoteId('');
             setDescription('');
+            setNoteAttendue('');
             setJustificatif(null);
             fetchData();
         } catch (e) {
@@ -504,31 +563,33 @@ function Dashboard() {
                         setError('Veuillez sélectionner un enseignant.');
                         return;
                     }
-                    await reclamationApi.imputer(selected.id, parseInt(enseignantId)); 
-                    break;
-                case 'accepter': 
-                    if (!commentaire.trim() || !nouvelleNoteProposee) {
-                        setError('Le commentaire et la nouvelle note sont obligatoires.');
+                    if (!enseignants.some(e => String(e.id) === String(enseignantId))) {
+                        setError('Enseignant invalide pour cette réclamation.');
                         return;
                     }
-                    await reclamationApi.analyser(selected.id, true, commentaire.trim(), parseFloat(nouvelleNoteProposee)); 
+                    await reclamationApi.imputer(selected.id, parseInt(enseignantId, 10)); 
+                    break;
+                case 'accepter': 
+                    if (!commentaire.trim()) {
+                        setError('Le commentaire est obligatoire.');
+                        return;
+                    }
+                    await reclamationApi.analyser(selected.id, true, commentaire.trim());
                     break;
                 case 'refuser': 
                     if (!commentaire.trim()) {
                         setError('Le commentaire est obligatoire pour refuser.');
                         return;
                     }
-                    await reclamationApi.analyser(selected.id, false, commentaire.trim(), null); 
+                    await reclamationApi.analyser(selected.id, false, commentaire.trim());
                     break;
                 case 'appliquer':
-                    await reclamationApi.appliquer(selected.id, null);
+                    await reclamationApi.appliquer(selected.id);
                     success('Décision de l\'enseignant appliquée');
                     break;
             }
             setSelected(null);
             setCommentaire('');
-            setNouvelleNote('');
-            setNouvelleNoteProposee('');
             setEnseignantId('');
             success('Action exécutée');
             fetchData();
@@ -564,7 +625,7 @@ function Dashboard() {
                         {role === 'ETUDIANT' && ['reclamations', 'en-cours', 'terminees'].includes(activeTab) && (
                             <button 
                                 className="btn-primary" 
-                                onClick={() => setShowForm(true)}
+                                onClick={() => openCreateForm()}
                                 disabled={!periodeActive?.active}
                             >
                                 Nouvelle réclamation
@@ -850,9 +911,8 @@ function Dashboard() {
                                                                                     notifyError('Une réclamation existe déjà pour cette note');
                                                                                     return;
                                                                                 }
-                                                                                setNoteId(n.id);
                                                                                 setActiveTab('reclamations');
-                                                                                setShowForm(true);
+                                                                                openCreateForm(n.id);
                                                                             }}
                                                                             disabled={reclamations.some(r => r.noteId === n.id) || !periodeActive?.active}
                                                                         >
@@ -944,9 +1004,9 @@ function Dashboard() {
                             <h3>Nouvelle réclamation</h3>
                             <button className="modal-close" onClick={() => setShowForm(false)}>×</button>
                         </div>
-                        <form onSubmit={handleCreate}>
+                        <form onSubmit={handleCreate} className="reclamation-create-form">
                             <div className="form-group">
-                                <label>Note</label>
+                                <label>Note concernee</label>
                                 <select value={noteId} onChange={e => setNoteId(e.target.value)} required>
                                     <option value="">-- Choisir une note --</option>
                                     {notes
@@ -958,30 +1018,84 @@ function Dashboard() {
                                     ))}
                                 </select>
                             </div>
+                            {selectedNote && (
+                                <div className="selected-note-card">
+                                    <p><strong>Matiere:</strong> {selectedNote.matiereNom}</p>
+                                    <p><strong>Semestre:</strong> {selectedNote.semestre}</p>
+                                    <p><strong>Note actuelle:</strong> {selectedNote.valeur}/20</p>
+                                </div>
+                            )}
                             <div className="form-group">
                                 <label>Description</label>
                                 <textarea 
                                     value={description} 
                                     onChange={e => setDescription(e.target.value)} 
                                     placeholder="Décrivez votre réclamation"
+                                    maxLength={1000}
                                     required 
                                 />
+                                <div className="field-meta">
+                                    <p className="field-hint">Expliquez clairement l'erreur constatee et les elements de preuve.</p>
+                                    <span className="char-count">{description.length}/1000</span>
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label>Note attendue</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="20"
+                                    step="0.5"
+                                    value={noteAttendue}
+                                    onChange={e => setNoteAttendue(e.target.value)}
+                                    placeholder="Ex: 14.5"
+                                    className={!noteAttendueValid ? 'input-error' : ''}
+                                    required
+                                />
+                                <p className="field-hint">Valeur obligatoire entre 0 et 20.</p>
+                                {!noteAttendueValid && (
+                                    <p className="field-error">La note attendue doit etre comprise entre 0 et 20.</p>
+                                )}
+                                {selectedNote && noteDifference !== null && noteAttendue !== '' && noteAttendueValid && (
+                                    <p className={`expected-note-feedback ${Number(noteDifference) >= 0 ? 'positive' : 'negative'}`}>
+                                        Ecart: {Number(noteDifference) >= 0 ? '+' : ''}{noteDifference} point(s) par rapport a la note actuelle.
+                                    </p>
+                                )}
                             </div>
                             <div className="form-group">
                                 <label>Justificatif (PDF, JPEG, PNG)</label>
-                                <input 
-                                    type="file" 
-                                    accept=".pdf,.jpg,.jpeg,.png"
-                                    onChange={e => setJustificatif(e.target.files[0])}
-                                    required 
-                                />
+                                <div className="file-upload-group">
+                                    <input 
+                                        type="file" 
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        onChange={e => setJustificatif(e.target.files[0])}
+                                        required 
+                                    />
+                                    <p className="field-hint">Taille maximale: 5 MB.</p>
+                                    {justificatif && (
+                                        <div className="file-pill">
+                                            {justificatif.name} ({(justificatif.size / (1024 * 1024)).toFixed(2)} MB)
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="form-actions">
                                 <button type="button" onClick={() => setShowForm(false)}>
                                     Annuler
                                 </button>
-                                <button type="submit" className="btn-primary" disabled={createLoading}>
-                                    {createLoading ? 'Envoi...' : 'Soumettre'}
+                                <button
+                                    type="submit"
+                                    className="btn-primary"
+                                    disabled={
+                                        createLoading ||
+                                        !noteId ||
+                                        !description.trim() ||
+                                        noteAttendue === '' ||
+                                        !justificatif ||
+                                        !noteAttendueValid
+                                    }
+                                >
+                                    {createLoading ? 'Envoi en cours...' : 'Soumettre la reclamation'}
                                 </button>
                             </div>
                         </form>
@@ -1001,6 +1115,7 @@ function Dashboard() {
                         <div className="modal-content">
                             <p><strong>Étudiant:</strong> {selected.etudiantPrenom} {selected.etudiantNom}</p>
                             <p><strong>Note:</strong> {selected.noteValeur}/20</p>
+                            <p><strong>Note attendue:</strong> {selected.noteAttendue ?? '-'}/20</p>
                             <p><strong>Statut:</strong> {selected.statut}</p>
                             <p><strong>Description:</strong></p>
                             <p className="description">{selected.description}</p>
@@ -1056,18 +1171,21 @@ function Dashboard() {
                                     <div className="form-group">
                                         <label>Enseignant</label>
                                         <select value={enseignantId} onChange={e => setEnseignantId(e.target.value)}>
-                                            <option value="">-- Automatique --</option>
+                                            <option value="">-- Choisir l'enseignant responsable --</option>
                                             {enseignants.map(e => (
                                                 <option key={e.id} value={e.id}>
                                                     {e.prenom} {e.nom}
                                                 </option>
                                             ))}
                                         </select>
+                                        {enseignants.length === 0 && (
+                                            <p className="field-hint">Aucun enseignant imputable chargé pour cette demande.</p>
+                                        )}
                                     </div>
                                     <button onClick={() => handleAction('imputer-auto')}>
                                         Imputation automatique
                                     </button>
-                                    <button onClick={() => handleAction('imputer')} disabled={!enseignantId}>
+                                    <button onClick={() => handleAction('imputer')} disabled={!enseignantId || enseignants.length === 0}>
                                         Imputer manuellement
                                     </button>
                                 </div>
@@ -1084,26 +1202,13 @@ function Dashboard() {
                                             required
                                         />
                                     </div>
-                                    <div className="form-group">
-                                        <label>Nouvelle note proposée</label>
-                                        <input 
-                                            type="number" 
-                                            min="0" 
-                                            max="20" 
-                                            step="0.5" 
-                                            value={nouvelleNoteProposee} 
-                                            onChange={e => setNouvelleNoteProposee(e.target.value)}
-                                            placeholder="Note si acceptée"
-                                            required
-                                        />
-                                    </div>
                                     <button onClick={() => handleAction('refuser')} disabled={!commentaire.trim()}>
                                         Refuser
                                     </button>
                                     <button 
                                         className="btn-primary" 
                                         onClick={() => handleAction('accepter')} 
-                                        disabled={!commentaire.trim() || !nouvelleNoteProposee}
+                                        disabled={!commentaire.trim()}
                                     >
                                         Accepter
                                     </button>
@@ -1115,7 +1220,7 @@ function Dashboard() {
                                     {selected.statut === 'ACCEPTEE' && (
                                         <div className="form-group">
                                             <p><strong>Votre décision:</strong> Accepter la réclamation</p>
-                                            <p><strong>Note à appliquer:</strong> {selected.nouvelleNoteProposee}/20</p>
+                                            <p><strong>Note à appliquer:</strong> {selected.noteAttendue ?? '-'}/20</p>
                                         </div>
                                     )}
                                     {selected.statut === 'REFUSEE' && (
@@ -1135,7 +1240,7 @@ function Dashboard() {
                                     {selected.statut === 'ACCEPTEE' && (
                                         <div className="form-group">
                                             <p><strong>Décision de l'enseignant:</strong> Accepter la réclamation</p>
-                                            <p><strong>Note à appliquer:</strong> {selected.nouvelleNoteProposee}/20</p>
+                                            <p><strong>Note à appliquer:</strong> {selected.noteAttendue ?? '-'}/20</p>
                                             <p style={{ fontSize: '14px', color: '#666' }}>Cette note sera appliquée automatiquement</p>
                                         </div>
                                     )}

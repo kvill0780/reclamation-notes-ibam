@@ -29,15 +29,16 @@ public class DemandeService {
 
     // CU: Soumettre réclamation (Étudiant)
     @Transactional
-    public DemandeReclamation soumettre(User etudiant, Long noteId, String description, 
-                                      String justificatifNom, String justificatifType, byte[] justificatifData) {
-        // L'étudiant est déjà authentifié et récupéré par le contrôleur
+    public DemandeReclamation soumettre(User etudiant, Long noteId, String description,
+            Double noteAttendue,
+            String justificatifNom, String justificatifType, byte[] justificatifData) {
         Note note = noteRepository.findById(noteId)
                 .orElseThrow(() -> new NoteNotFoundException(
                         "Note non trouvée avec ID:" + noteId));
 
-        DemandeReclamation demande = DemandeReclamation.soumettre(etudiant, note, description, 
-                                                                justificatifNom, justificatifType, justificatifData);
+        DemandeReclamation demande = DemandeReclamation.soumettre(etudiant, note, description,
+                noteAttendue,
+                justificatifNom, justificatifType, justificatifData);
 
         return demandeRepository.save(demande);
     }
@@ -59,6 +60,12 @@ public class DemandeService {
                 .orElseThrow(() -> new DemandeNotFoundException("Demande non trouvée"));
         User enseignant = userRepository.findById(enseignantId)
                 .orElseThrow(() -> new EnseignantNotFoundException("Enseignant non trouvé"));
+        User enseignantResponsable = demande.getNote().getEnseignantResponsable();
+
+        if (!enseignantResponsable.getId().equals(enseignant.getId())) {
+            throw new IllegalArgumentException(
+                    "Imputation invalide: la demande doit être imputée à l'enseignant responsable de la note");
+        }
 
         demande.imputer(enseignant);
         demandeRepository.save(demande);
@@ -77,23 +84,40 @@ public class DemandeService {
         demandeRepository.save(demande);
     }
 
-    // CU: Analyser demande (Enseignant)
+    // CU: Analyser demande (Enseignant) — accepte ou refuse, sans saisir de note
     @Transactional
-    public void analyserDemande(Long demandeId, boolean acceptee, String commentaire, Double nouvelleNoteProposee) {
+    public void analyserDemande(Long demandeId, boolean acceptee, String commentaire) {
         DemandeReclamation demande = demandeRepository.findById(demandeId)
                 .orElseThrow(() -> new DemandeNotFoundException("Demande non trouvée"));
 
-        demande.analyser(acceptee, commentaire, nouvelleNoteProposee);
+        demande.analyser(acceptee, commentaire);
         demandeRepository.save(demande);
     }
 
-    // CU: Appliquer décision (Scolarité)
+    // Variante sécurisée: contrôle d'accès basé sur l'utilisateur courant
     @Transactional
-    public void appliquerDecision(Long demandeId, Double nouvelleNote) {
+    public void analyserDemande(Long demandeId, boolean acceptee, String commentaire, User utilisateur) {
+        DemandeReclamation demande = getDemandeAccessiblePourUtilisateur(demandeId, utilisateur);
+        demande.analyser(acceptee, commentaire);
+        demandeRepository.save(demande);
+    }
+
+    // CU: Appliquer décision (Scolarité) — applique la noteAttendue de l'étudiant
+    // si acceptée
+    @Transactional
+    public void appliquerDecision(Long demandeId) {
         DemandeReclamation demande = demandeRepository.findById(demandeId)
                 .orElseThrow(() -> new DemandeNotFoundException("Demande non trouvée"));
 
-        demande.appliquerDecision(nouvelleNote);
+        demande.appliquerDecision();
+        demandeRepository.save(demande);
+    }
+
+    // Variante sécurisée: contrôle d'accès basé sur l'utilisateur courant
+    @Transactional
+    public void appliquerDecision(Long demandeId, User utilisateur) {
+        DemandeReclamation demande = getDemandeAccessiblePourUtilisateur(demandeId, utilisateur);
+        demande.appliquerDecision();
         demandeRepository.save(demande);
     }
 
@@ -101,11 +125,11 @@ public class DemandeService {
     @Transactional(readOnly = true)
     public List<DemandeReclamation> getDemandesPourUtilisateur(User user) {
         return switch (user.getRole()) {
-            case ROLE_ETUDIANT -> 
+            case ROLE_ETUDIANT ->
                 demandeRepository.findByEtudiantId(user.getId());
-            case ROLE_ENSEIGNANT -> 
+            case ROLE_ENSEIGNANT ->
                 demandeRepository.findByEnseignantImputeId(user.getId());
-            case ROLE_DA, ROLE_SCOLARITE -> 
+            case ROLE_DA, ROLE_SCOLARITE ->
                 demandeRepository.findAll();
         };
     }
@@ -114,22 +138,22 @@ public class DemandeService {
     public DemandeReclamation getDemandeAccessiblePourUtilisateur(Long demandeId, User user) {
         DemandeReclamation demande = demandeRepository.findById(demandeId)
                 .orElseThrow(() -> new DemandeNotFoundException("Demande non trouvée"));
-        
+
         // Vérification des permissions selon le rôle
         boolean hasAccess = switch (user.getRole()) {
-            case ROLE_ETUDIANT -> 
+            case ROLE_ETUDIANT ->
                 demande.getEtudiant().getId().equals(user.getId());
-            case ROLE_ENSEIGNANT -> 
-                demande.getEnseignantImpute() != null && 
-                demande.getEnseignantImpute().getId().equals(user.getId());
-            case ROLE_DA, ROLE_SCOLARITE -> 
+            case ROLE_ENSEIGNANT ->
+                demande.getEnseignantImpute() != null &&
+                        demande.getEnseignantImpute().getId().equals(user.getId());
+            case ROLE_DA, ROLE_SCOLARITE ->
                 true; // Accès total
         };
-        
+
         if (!hasAccess) {
             throw new DemandeNotFoundException("Accès non autorisé à cette demande");
         }
-        
+
         return demande;
     }
 
@@ -147,5 +171,13 @@ public class DemandeService {
     @Transactional(readOnly = true)
     public List<DemandeReclamation> getToutesDemandes() {
         return demandeRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> getEnseignantsImputables(Long demandeId) {
+        DemandeReclamation demande = demandeRepository.findById(demandeId)
+                .orElseThrow(() -> new DemandeNotFoundException("Demande non trouvée"));
+
+        return List.of(demande.getNote().getEnseignantResponsable());
     }
 }
