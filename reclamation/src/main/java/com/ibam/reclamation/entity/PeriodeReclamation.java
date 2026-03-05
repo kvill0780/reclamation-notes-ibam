@@ -18,7 +18,7 @@ public class PeriodeReclamation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
+    @Column(nullable = false, length = 150)
     private String nom; // Ex: "Réclamations Semestre 1 - 2024"
     
     @Column(nullable = false)
@@ -34,7 +34,7 @@ public class PeriodeReclamation {
     @JoinColumn(name = "createur_id", nullable = false)
     private User createur; // Le DA qui a créé la période
     
-    @Column
+    @Column(length = 500)
     private String description;
     
     @Column(nullable = false)

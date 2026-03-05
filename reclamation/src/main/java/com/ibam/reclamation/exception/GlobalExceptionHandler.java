@@ -87,6 +87,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, "Enseignant introuvable", ex.getMessage(), request);
     }
 
+    @ExceptionHandler(PeriodeNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handlePeriodeNotFoundException(
+            PeriodeNotFoundException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.NOT_FOUND, "Période introuvable", ex.getMessage(), request);
+    }
+
     // --- 409 Conflict : État invalide (workflow) ---
 
     @ExceptionHandler(IllegalStateException.class)

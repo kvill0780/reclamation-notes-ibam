@@ -15,6 +15,11 @@ export const ErrorHandler = {
     getDisplayMessage: (error) => {
         const status = error.response?.status;
         const serverMessage = error.response?.data?.message;
+        const requestUrl = error.config?.url || '';
+        const isLoginRequest = requestUrl.includes('/api/auth/login');
+
+        // Always show a neutral auth error on login attempts.
+        if (isLoginRequest && (status === 400 || status === 401)) return 'Identifiant ou mot de passe invalide';
         
         if (serverMessage) return serverMessage;
         

@@ -1,132 +1,99 @@
-# TP 2 – Tests Selenium – Plateforme Demande de Réclamation IBAM
+# Tests - Plateforme Réclamations IBAM
 
 ## Prérequis
 
-```bash
-# 1. Installer Python 3.9+
-# 2. Installer Selenium
-pip install selenium
-
-# 3. Vérifier votre version de Chrome
-google-chrome --version
-
-# 4. ChromeDriver doit correspondre à votre version Chrome
-#    (Selenium >= 4.6 gère ça automatiquement via selenium-manager)
-```
-
-> Avant de lancer les tests, assurez-vous que :
-> - Le **backend Spring Boot** tourne sur `localhost:8080`
-> - Le **frontend Vite** tourne sur `localhost:3000` (`npm run dev` dans `/frontend`)
-
----
-
-## Compte de test utilisé
-
-| Champ    | Valeur                       |
-|----------|------------------------------|
-| Email    | `joel.soulama@ibam.ma`       |
-| Password | `password123`                |
-| Rôle     | Étudiant                     |
-
----
-
-## Exercice 1 – Tests Fonctionnels
+- Python 3.9+
+- Google Chrome installé
+- Selenium (Selenium Manager gère ChromeDriver automatiquement)
 
 ```bash
-python tests/exercice1_test_fonctionnel.py
+pip install selenium requests
 ```
 
-| Test | Description |
-|------|-------------|
-| `test_01_affichage_formulaire_connexion` | Page de connexion affichée avec le bon titre |
-| `test_02_authentification_reussie` | Login valide → redirection dashboard |
-| `test_03_deconnexion` | Logout → retour page connexion |
-| `test_01_premiere_tentative_echouee` | Mauvais identifiants → message d'erreur |
-| `test_02_deuxieme_tentative_echouee` | 2ème mauvais identifiants → message d'erreur |
-| `test_03_troisieme_tentative_compte_desactive` | 3ème tentative → compte désactivé |
+Avant exécution:
 
----
+- Backend actif sur `http://localhost:8080`
+- Frontend actif sur `http://localhost:3000`
 
-## Exercice 2 – Test de Charge
+## Variables d'environnement utiles
 
 ```bash
-python tests/exercice2_test_charge.py
+export UI_BASE_URL=http://localhost:3000
+export API_BASE_URL=http://localhost:8080
+export SELENIUM_HEADLESS=1
 ```
 
-- **Phase 1** : 10 utilisateurs en parallèle → `resultats/charge_10_utilisateurs.csv`
-- **Phase 2** : 100 utilisateurs en parallèle → `resultats/charge_100_utilisateurs.csv`
-- **Phase 3** : 200 utilisateurs en parallèle → `resultats/charge_200_utilisateurs.csv`
+Variables de comptes (optionnel):
 
-**Format CSV** :
+- `SELENIUM_ETUDIANT_EMAIL` / `SELENIUM_ETUDIANT_PASSWORD`
+- `SELENIUM_ENSEIGNANT_EMAIL` / `SELENIUM_ENSEIGNANT_PASSWORD`
+- `SELENIUM_DA_EMAIL` / `SELENIUM_DA_PASSWORD`
+- `SELENIUM_SCOLARITE_EMAIL` / `SELENIUM_SCOLARITE_PASSWORD`
 
-| Colonne | Description |
-|---------|-------------|
-| `utilisateur_id` | Numéro de l'utilisateur simulé |
-| `telephone_ou_email` | Email/Numéro utilisé |
-| `statut` | `SUCCÈS` ou `ÉCHEC` |
-| `duree_secondes` | Durée totale de connexion en secondes |
-| `message_erreur` | Message d'erreur si ÉCHEC |
-| `timestamp` | Date/heure du test |
-
----
-
-## Exercice 3 – Test de Performance
+## Suite Selenium organisée par scénario
 
 ```bash
-python tests/exercice3_test_performance.py
+# depuis la racine du projet
+python3 -m unittest discover -s tests/selenium -p "test_*.py" -v
+
+# fichiers individuels
+python3 tests/selenium/test_login_valid_credentials.py
+python3 tests/selenium/test_login_invalid_credentials.py
+python3 tests/selenium/test_login_multiple_users.py
+python3 tests/selenium/test_dashboard_requires_login.py
+python3 tests/selenium/test_reclamation_submission.py
+python3 tests/selenium/test_reclamation_submission_invalid_expected_note.py
+python3 tests/selenium/test_reclamation_analysis.py
 ```
 
-- **Phase 1** : 10 utilisateurs en parallèle → `resultats/perf_10_utilisateurs.csv`
-- **Phase 2** : 100 utilisateurs en parallèle → `resultats/perf_100_utilisateurs.csv`
-- **Phase 3** : 200 utilisateurs en parallèle → `resultats/perf_200_utilisateurs.csv`
+## Ce que couvrent les scénarios Selenium
 
-**Format CSV** (métriques détaillées) :
+- Login valide
+- Login invalide (mot de passe ou email inconnu)
+- Login multi-utilisateurs (5 comptes)
+- Protection des routes dashboard sans authentification
+- Soumission de réclamation (cas nominal + validations UI)
+- Soumission avec notes attendues invalides
+- Analyse enseignant (commentaire obligatoire, acceptation, refus)
 
-| Colonne | Description |
-|---------|-------------|
-| `temps_chargement_page_s` | Temps de chargement de la page |
-| `temps_saisie_s` | Temps de saisie du formulaire |
-| `temps_reponse_serveur_s` | Temps de réponse du backend |
-| `temps_total_s` | Durée totale |
-| `conforme_seuils` | `OUI` si dans les seuils (page <3s, total <5s) |
+## Particularités des helpers (`tests/selenium/common.py`)
 
----
+- Création automatique d’une période active si nécessaire
+- Sélection automatique d’un étudiant avec note réclamable
+- Préparation automatique d’une réclamation `IMPUTEE` pour les tests d’analyse
 
-## Exercice 6 – Tests Unitaires (Affichage de page)
+## Scripts TP existants
 
 ```bash
-python tests/exercice6_test_unitaire.py
+python3 tests/exercice1_test_fonctionnel.py
+python3 tests/exercice2_test_charge.py
+python3 tests/exercice3_test_performance.py
+python3 tests/exercice6_test_unitaire.py
+python3 tests/test_api_validation_note.py
+python3 tests/test_validation_note_selenium.py
 ```
 
-| Test | Description |
-|------|-------------|
-| `test_01_titre_onglet_navigateur` | Titre onglet = "Logiciel de Réclamations" |
-| `test_02_titre_formulaire_h1` | Titre H1 = "IBAM - Réclamations" ✅ (test principal Exo 6) |
-| `test_03_presence_champ_email` | Champ email visible |
-| `test_04_presence_champ_mot_de_passe` | Champ password visible |
-| `test_05_presence_bouton_connexion` | Bouton submit visible et actif |
-| `test_06_presence_label_email` | Label "Email" présent |
-| `test_07_presence_label_mot_de_passe` | Label "Mot de passe" présent |
-| `test_08_url_page_connexion` | URL correcte (pas de dashboard) |
-| `test_09_structure_formulaire` | 2 champs + 1 bouton submit |
+## Arborescence
 
----
-
-## Dossier des résultats
-
-```
+```text
 tests/
+├── README.md
 ├── exercice1_test_fonctionnel.py
 ├── exercice2_test_charge.py
 ├── exercice3_test_performance.py
 ├── exercice6_test_unitaire.py
 ├── test_api_validation_note.py
-├── README.md
-└── resultats/                        ← Créé automatiquement
-    ├── charge_10_utilisateurs.csv
-    ├── charge_100_utilisateurs.csv
-    ├── charge_200_utilisateurs.csv
-    ├── perf_10_utilisateurs.csv
-    ├── perf_100_utilisateurs.csv
-    └── perf_200_utilisateurs.csv
+├── test_validation_note_selenium.py
+├── selenium/
+│   ├── common.py
+│   ├── fixtures/
+│   │   └── justificatif_test.pdf
+│   ├── test_login_valid_credentials.py
+│   ├── test_login_invalid_credentials.py
+│   ├── test_login_multiple_users.py
+│   ├── test_dashboard_requires_login.py
+│   ├── test_reclamation_submission.py
+│   ├── test_reclamation_submission_invalid_expected_note.py
+│   └── test_reclamation_analysis.py
+└── resultats/
 ```

@@ -44,4 +44,10 @@ public abstract class BusinessException extends RuntimeException {
             super(message);
         }
     }
+
+    public static class PeriodeNotFoundException extends BusinessException {
+        public PeriodeNotFoundException(String message) {
+            super(message);
+        }
+    }
 }

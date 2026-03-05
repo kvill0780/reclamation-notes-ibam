@@ -1,139 +1,144 @@
-# 📚 Système de Réclamation de Notes - IBAM
+# Système de Réclamation de Notes - IBAM
 
-Application web de dématérialisation des réclamations de notes pour l'Institut Burkinabé des Arts et Métiers.
+Application web de gestion des réclamations de notes post-délibération.
 
-## ⚙️ Configuration
+## Structure du projet
 
-**Avant de lancer l'application, configurez les fichiers :**
+- `reclamation/` : backend Spring Boot (API REST + sécurité JWT)
+- `frontend/` : interface React (Vite)
+- `tests/` : tests Selenium et scripts de charge/performance
 
-1. Copiez `reclamation/src/main/resources/application-example.yml` → `application.yml`
-2. Copiez `reclamation/src/main/resources/data-example.sql` → `data.sql`
-3. Modifiez les valeurs :
-   - **DB** : `username`, `password`
-   - **JWT** : `secret` (32+ caractères)
-   - **Hash** : Utilisez `HashGen.java` pour les mots de passe
+## Pré-requis
 
-## Technologies
+- Java 21
+- Node.js 18+ et npm
+- PostgreSQL 14+
 
-**Backend :**
-- Spring Boot 3.2.0 (Java 21)
-- PostgreSQL
-- Spring Security + JWT
-- Maven
+Vérification rapide:
 
-**Frontend :**
-- React 18 + Vite
-- Axios
-- CSS Vanilla
-
-## Fonctionnalités
-
-- **Étudiants** : Consultation notes, soumission réclamations avec **justificatif** + **note attendue**
-- **Scolarité** : Vérification recevabilité, validation/rejet
-- **DA** : Gestion périodes, imputation enseignants (avec suggestion automatique)
-- **Enseignants** : Analyse réclamations (acceptation/refus avec commentaire, **sans saisie de nouvelle note**)
-
-## Installation
-
-### Backend
 ```bash
-cd reclamation
-mvn spring-boot:run
+java -version
+node -v
+npm -v
+psql --version
 ```
 
-### Frontend
+## Configuration backend
+
+1. Aller dans le dossier des ressources:
+
+```bash
+cd reclamation/src/main/resources
+```
+
+2. Si besoin, copier l’exemple:
+
+```bash
+cp application-example.yml application.yml
+```
+
+3. Modifier `application.yml`:
+
+- `spring.datasource.url`
+- `spring.datasource.username`
+- `spring.datasource.password`
+- `jwt.secret` (minimum 32 caractères)
+
+## Création de la base PostgreSQL
+
+Créer la base attendue par défaut (`reclamations_db`):
+
+```bash
+sudo -u postgres psql
+```
+
+Puis dans `psql`:
+
+```sql
+CREATE DATABASE reclamations_db;
+CREATE USER kvill WITH PASSWORD 'postgre';
+GRANT ALL PRIVILEGES ON DATABASE reclamations_db TO kvill;
+\q
+```
+
+Si vous utilisez d’autres identifiants, adaptez `application.yml`.
+
+## Données de démarrage
+
+- `data.sql` est chargé automatiquement au démarrage (`spring.sql.init.mode=always`)
+- `data-example.sql` est un jeu d’exemple minimal
+
+## Lancement
+
+### 1) Backend
+
+```bash
+cd reclamation
+./mvnw spring-boot:run
+```
+
+Backend API: `http://localhost:8080`
+
+### 2) Frontend
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-## Workflow
+Frontend: `http://localhost:3000`
 
-SOUMISE (avec justificatif + note attendue) → TRANSMISE_DA → IMPUTEE → ACCEPTEE/REFUSEE → APPLIQUEE/REJETEE
+## Workflow métier (post-délibération)
 
-### Détail du workflow post-délibération
+`SOUMISE -> TRANSMISE_DA -> IMPUTEE -> ACCEPTEE/REFUSEE -> APPLIQUEE/REJETEE`
 
-1. **Étudiant**
-   - Sélectionne une note déjà publiée
-   - Renseigne une **description**
-   - Renseigne la **note attendue** (`0` à `20`)
-   - Joint un **justificatif** (PDF/JPG/PNG)
-2. **Scolarité**
-   - Vérifie la recevabilité
-   - Si recevable: `SOUMISE` → `TRANSMISE_DA`
-   - Sinon: `SOUMISE` → `REJETEE` (commentaire obligatoire)
-3. **DA**
-   - Impute la demande à un enseignant (manuel ou automatique)
-   - `TRANSMISE_DA` → `IMPUTEE`
-4. **Enseignant**
-   - Analyse et commente
-   - **N’entre pas de nouvelle note**
-   - `IMPUTEE` → `ACCEPTEE` ou `REFUSEE`
-5. **Application**
-   - Si `ACCEPTEE`, la note appliquée est la **note attendue par l’étudiant**
-   - Si `REFUSEE`, la note reste inchangée
-   - Statut final: `APPLIQUEE`
+1. Étudiant
+- Sélectionne une note publiée
+- Saisit la description + la note attendue (0-20)
+- Joint un justificatif (obligatoire)
 
-### Règles métier
+2. Scolarité
+- Vérifie la recevabilité
+- Reçoit la demande ou la rejette avec commentaire
 
-- Une seule réclamation par couple `(étudiant, note)`.
-- `noteAttendue` est obligatoire et doit être comprise entre `0` et `20`.
-- Le justificatif est obligatoire à la soumission.
-- Le commentaire enseignant est obligatoire lors de l’analyse.
+3. DA
+- Impute la demande à un enseignant (manuel/auto)
+- Gère les périodes de réclamation
 
-## Comptes de test
+4. Enseignant
+- Analyse une demande imputée
+- Accepte/refuse avec commentaire
+- N’entre pas de nouvelle note
 
-- **Étudiant** : jean.dupont@ibam.ma (quelques réclamations)
-- **Enseignant** : yaya.traore@ibam.ma ⭐ **RECOMMANDÉ** - 5 demandes avec statuts variés
-- **Scolarité** : omar.tazi@ibam.ma (toutes les demandes)
-- **DA** : rachid.bennani@ibam.ma (gestion complète + suggestions d'imputation)
+## Règles importantes
 
-*Mot de passe* : `password123`
+- Une seule réclamation par couple `(étudiant, note)`
+- `noteAttendue` obligatoire, comprise entre `0` et `20`
+- Justificatif obligatoire à la soumission
+- Commentaire obligatoire lors de l’analyse enseignant
 
-## Améliorations récentes
+## Comptes de test (mot de passe: `password123`)
 
-- **DA** : Affichage de l'enseignant responsable sur les cartes pour faciliter l'imputation
-- **Données de test** : Yaya Traoré dispose de 5 demandes avec différents statuts
-- **Interface** : Distinction claire entre enseignant responsable et enseignant imputé
-- **Sécurité** : Blocage de compte après 3 tentatives de connexion échouées
-- **Validation** : Contrôle des notes (0-20) côté frontend et backend
+- Étudiant: `jean.dupont@ibam.ma`
+- Étudiant: `marie.martin@ibam.ma`
+- Enseignant: `yaya.traore@ibam.ma`
+- Scolarité: `omar.tazi@ibam.ma`
+- DA: `rachid.bennani@ibam.ma`
 
-## Tests automatisés
+## Tests
 
-**Prérequis** : `pip install selenium requests`
+Voir `tests/README.md`.
 
-### Tests disponibles (répertoire `/tests`)
+Commandes rapides:
 
-1. **Exercice 1 - Tests fonctionnels** (`exercice1_test_fonctionnel.py`)
-   - Authentification (succès/échec)
-   - Blocage après 3 tentatives
-   - Déconnexion
-
-2. **Exercice 2 - Tests de charge** (`exercice2_test_charge.py`)
-   - 10 puis 100 utilisateurs simultanés
-   - 8 threads parallèles
-   - Génère `resultats_charge.csv`
-
-3. **Exercice 3 - Tests de performance** (`exercice3_test_performance.py`)
-   - Mesure temps de chargement, remplissage formulaire, réponse serveur
-   - 10 puis 100 utilisateurs
-   - Génère `resultats_performance.csv`
-
-4. **Exercice 6 - Tests unitaires UI** (`exercice6_test_unitaire.py`)
-   - Validation structure page (titre, formulaire, labels, boutons)
-
-5. **Tests validation note**
-   - `test_api_validation_note.py` : Tests API REST (notes 0-20)
-   - `test_validation_note_selenium.py` : Tests UI avec navigateur visible (notes -2 et 25)
-
-### Exécution
 ```bash
-cd tests
-python exercice1_test_fonctionnel.py
-python test_validation_note_selenium.py
+python3 -m unittest discover -s tests/selenium -p "test_*.py" -v
+python3 tests/selenium/test_login_invalid_credentials.py
 ```
 
-## Licence
+## Dépannage rapide
 
-Projet académique - IBAM 2025
+- Erreur DB connexion: vérifier que PostgreSQL tourne et que `application.yml` contient les bons identifiants.
+- Port 8080 occupé: changer `server.port` côté backend ou libérer le port.
+- Port 3000 occupé: lancer `npm run dev -- --port 3001`.

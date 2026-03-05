@@ -1,14 +1,15 @@
 package com.ibam.reclamation.controller;
 
+import com.ibam.reclamation.dto.CreatePeriodeRequest;
 import com.ibam.reclamation.entity.PeriodeReclamation;
 import com.ibam.reclamation.entity.User;
-import com.ibam.reclamation.repository.PeriodeReclamationRepository;
 import com.ibam.reclamation.service.AuthenticationService;
+import com.ibam.reclamation.service.PeriodeReclamationService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -17,23 +18,24 @@ import java.util.Map;
 @PreAuthorize("isAuthenticated()")
 public class PeriodeReclamationController {
 
-    private final PeriodeReclamationRepository periodeRepository;
+    private final PeriodeReclamationService periodeService;
     private final AuthenticationService authenticationService;
 
-    public PeriodeReclamationController(PeriodeReclamationRepository periodeRepository, 
-                                      AuthenticationService authenticationService) {
-        this.periodeRepository = periodeRepository;
+    public PeriodeReclamationController(PeriodeReclamationService periodeService,
+            AuthenticationService authenticationService) {
+        this.periodeService = periodeService;
         this.authenticationService = authenticationService;
     }
 
     @GetMapping("/active")
     public ResponseEntity<Map<String, Object>> getPeriodeActive() {
-        LocalDateTime maintenant = LocalDateTime.now();
-        return periodeRepository.findPeriodeActive(maintenant)
+        return periodeService.getPeriodeActive()
                 .map(periode -> {
                     Map<String, Object> response = Map.of(
+                        "id", periode.getId(),
                         "active", true,
                         "nom", periode.getNom(),
+                        "dateDebut", periode.getDateDebut(),
                         "dateFin", periode.getDateFin(),
                         "heuresRestantes", periode.getHeuresRestantes(),
                         "description", periode.getDescription() != null ? periode.getDescription() : ""
@@ -46,33 +48,20 @@ public class PeriodeReclamationController {
     @GetMapping
     @PreAuthorize("hasRole('DA')")
     public ResponseEntity<List<PeriodeReclamation>> getAllPeriodes() {
-        return ResponseEntity.ok(periodeRepository.findAll());
+        return ResponseEntity.ok(periodeService.getAllPeriodes());
     }
 
     @PostMapping
     @PreAuthorize("hasRole('DA')")
-    public ResponseEntity<PeriodeReclamation> creerPeriode(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<PeriodeReclamation> creerPeriode(@Valid @RequestBody CreatePeriodeRequest request) {
         User da = authenticationService.getCurrentUser();
-        
-        PeriodeReclamation periode = new PeriodeReclamation();
-        periode.setNom((String) request.get("nom"));
-        periode.setDescription((String) request.get("description"));
-        periode.setDateDebut(LocalDateTime.parse((String) request.get("dateDebut")));
-        periode.setDateFin(LocalDateTime.parse((String) request.get("dateFin")));
-        periode.setCreateur(da);
-        
-        return ResponseEntity.ok(periodeRepository.save(periode));
+        return ResponseEntity.ok(periodeService.creerPeriode(request, da));
     }
 
     @PutMapping("/{id}/fermer")
     @PreAuthorize("hasRole('DA')")
     public ResponseEntity<String> fermerPeriode(@PathVariable Long id) {
-        return periodeRepository.findById(id)
-                .map(periode -> {
-                    periode.setActive(false);
-                    periodeRepository.save(periode);
-                    return ResponseEntity.ok("Période fermée");
-                })
-                .orElse(ResponseEntity.notFound().build());
+        periodeService.fermerPeriode(id);
+        return ResponseEntity.ok("Période fermée");
     }
 }

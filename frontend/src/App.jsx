@@ -9,12 +9,13 @@ import { ErrorHandler } from './utils/errorHandler.js';
 
 // ============ PAGES ============
 function GestionPeriodes() {
-    const { user } = useAuth();
     const navigate = useNavigate();
-    const { success, error: notifyError } = useNotifications();
+    const { notifications, success, error: notifyError } = useNotifications();
     const [periodes, setPeriodes] = useState([]);
     const [periodeActive, setPeriodeActive] = useState(null);
     const [activeTab, setActiveTab] = useState('active');
+    const [createLoading, setCreateLoading] = useState(false);
+    const [createAttempted, setCreateAttempted] = useState(false);
     const [nouvellePeriode, setNouvellePeriode] = useState({
         nom: '',
         dateDebut: '',
@@ -22,12 +23,89 @@ function GestionPeriodes() {
         description: ''
     });
 
+    const formatDateTimeLocal = (date) => {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+
+    const startDate = nouvellePeriode.dateDebut ? new Date(nouvellePeriode.dateDebut) : null;
+    const endDate = nouvellePeriode.dateFin ? new Date(nouvellePeriode.dateFin) : null;
+    const now = new Date();
+    const getPeriodeStatus = (periode) => {
+        const dateDebut = new Date(periode.dateDebut);
+        const dateFin = new Date(periode.dateFin);
+
+        if (!periode.active) return 'FERMEE';
+        if (dateDebut <= now && dateFin > now) return 'OUVERTE';
+        if (dateDebut > now) return 'PLANIFIEE';
+        return 'TERMINEE_NON_CLOTUREE';
+    };
+    const getPeriodeStatusLabel = (status) => {
+        switch (status) {
+            case 'OUVERTE':
+                return 'Ouverte';
+            case 'PLANIFIEE':
+                return 'Planifiée';
+            case 'TERMINEE_NON_CLOTUREE':
+                return 'Terminée (à clôturer)';
+            default:
+                return 'Fermée';
+        }
+    };
+    const getPeriodeStatusClass = (status) => {
+        switch (status) {
+            case 'OUVERTE':
+                return 'status-acceptee';
+            case 'PLANIFIEE':
+                return 'status-en-cours';
+            case 'TERMINEE_NON_CLOTUREE':
+                return 'status-refusee';
+            default:
+                return 'status-appliquee';
+        }
+    };
+    const periodesAvecStatut = periodes.map((p) => ({
+        ...p,
+        periodeStatus: getPeriodeStatus(p)
+    }));
+    const periodeOuverteDepuisListe = periodesAvecStatut.find((p) => p.periodeStatus === 'OUVERTE');
+    const periodeOuverte = periodeActive?.active ? periodeActive : periodeOuverteDepuisListe;
+    const isStartInPast = startDate ? startDate.getTime() < now.getTime() - 60_000 : false;
+    const isEndBeforeStart = startDate && endDate ? endDate <= startDate : false;
+    const durationHours = startDate && endDate ? (endDate - startDate) / (1000 * 60 * 60) : null;
+    const exceedsMaxDuration = durationHours != null ? durationHours > 72 : false;
+    const hasCurrentActivePeriod = Boolean(periodeOuverte);
+    const overlappingActivePeriode = startDate && endDate
+        ? periodesAvecStatut
+            .filter((p) => p.periodeStatus === 'OUVERTE' || p.periodeStatus === 'PLANIFIEE')
+            .find((p) => {
+                const existingStart = new Date(p.dateDebut);
+                const existingEnd = new Date(p.dateFin);
+                return existingStart < endDate && existingEnd > startDate;
+            })
+        : null;
+    const upcomingPeriodes = periodesAvecStatut
+        .filter((p) => p.periodeStatus === 'PLANIFIEE')
+        .sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
+    const prochainePeriode = upcomingPeriodes[0] || null;
+
+    const creationBlockingReason = (() => {
+        if (!nouvellePeriode.nom.trim()) return 'Le nom de la période est obligatoire.';
+        if (!nouvellePeriode.dateDebut || !nouvellePeriode.dateFin) return 'Les dates de début et de fin sont obligatoires.';
+        if (isStartInPast) return 'La date de début doit être dans le futur.';
+        if (isEndBeforeStart) return 'La date de fin doit être postérieure à la date de début.';
+        if (exceedsMaxDuration) return 'La durée maximale autorisée est de 72 heures (3 jours).';
+        if (overlappingActivePeriode) return `Chevauchement détecté avec la période "${overlappingActivePeriode.nom}".`;
+        return '';
+    })();
+
     const fetchPeriodes = async () => {
         try {
             const { data } = await periodeApi.getAll();
             setPeriodes(data);
         } catch (e) {
             console.error('Erreur périodes:', e);
+            notifyError("Impossible de charger l'historique des périodes");
         }
     };
 
@@ -42,23 +120,49 @@ function GestionPeriodes() {
 
     const handleCreatePeriode = async (e) => {
         e.preventDefault();
+        setCreateAttempted(true);
+        if (creationBlockingReason) {
+            notifyError(creationBlockingReason);
+            return;
+        }
+
+        setCreateLoading(true);
         try {
             await periodeApi.create(nouvellePeriode);
             success('Période créée avec succès');
             setNouvellePeriode({ nom: '', dateDebut: '', dateFin: '', description: '' });
-            fetchPeriodes();
-            checkPeriodeActive();
+            setCreateAttempted(false);
+            await fetchPeriodes();
+            await checkPeriodeActive();
+            setActiveTab('history');
         } catch (e) {
             notifyError(e.response?.data?.message || 'Erreur lors de la création');
+        } finally {
+            setCreateLoading(false);
         }
+    };
+
+    const applyQuickDuration = (hours) => {
+        const start = new Date();
+        start.setMinutes(start.getMinutes());
+        start.setSeconds(0, 0);
+
+        const end = new Date(start);
+        end.setHours(end.getHours() + hours);
+
+        setNouvellePeriode((prev) => ({
+            ...prev,
+            dateDebut: formatDateTimeLocal(start),
+            dateFin: formatDateTimeLocal(end)
+        }));
     };
 
     const handleFermerPeriode = async (id) => {
         try {
             await periodeApi.fermer(id);
             success('Période fermée');
-            fetchPeriodes();
-            checkPeriodeActive();
+            await fetchPeriodes();
+            await checkPeriodeActive();
         } catch (e) {
             notifyError('Erreur lors de la fermeture');
         }
@@ -86,7 +190,7 @@ function GestionPeriodes() {
                         className={activeTab === 'active' ? 'tab-active' : ''}
                         onClick={() => setActiveTab('active')}
                     >
-                        Période active {periodeActive?.active ? '(1)' : '(0)'}
+                        Période active {periodeOuverte ? '(1)' : '(0)'}
                     </button>
                     <button 
                         className={activeTab === 'create' ? 'tab-active' : ''}
@@ -105,19 +209,18 @@ function GestionPeriodes() {
                 {/* Contenu selon l'onglet actif */}
                 {activeTab === 'active' && (
                     <div className="tab-content">
-                        {periodeActive?.active ? (
+                        {periodeOuverte ? (
                             <div className="periode-active-section">
                                 <h3>🟢 Période Actuellement Active</h3>
                                 <div className="periode-active-card">
-                                    <h4>{periodeActive.nom}</h4>
-                                    <p>Fin: {new Date(periodeActive.dateFin).toLocaleString('fr-FR')}</p>
-                                    <p>Temps restant: {periodeActive.heuresRestantes}h</p>
+                                    <h4>{periodeOuverte.nom}</h4>
+                                    <p>Fin: {new Date(periodeOuverte.dateFin).toLocaleString('fr-FR')}</p>
+                                    <p>Temps restant: {periodeOuverte.heuresRestantes}h</p>
                                     <button 
                                         className="btn-danger"
                                         onClick={() => {
-                                            const periode = periodes.find(p => p.nom === periodeActive.nom);
-                                            if (periode && confirm('Fermer cette période ?')) {
-                                                handleFermerPeriode(periode.id);
+                                            if (periodeOuverte?.id && confirm('Fermer cette période ?')) {
+                                                handleFermerPeriode(periodeOuverte.id);
                                             }
                                         }}
                                     >
@@ -129,11 +232,35 @@ function GestionPeriodes() {
                             <div className="empty">
                                 <h3>Aucune période active</h3>
                                 <p>Il n'y a actuellement aucune période de réclamation ouverte.</p>
+                                {prochainePeriode && (
+                                    <div className="next-periode-card">
+                                        <p><strong>Prochaine période:</strong> {prochainePeriode.nom}</p>
+                                        <p><strong>Début:</strong> {new Date(prochainePeriode.dateDebut).toLocaleString('fr-FR')}</p>
+                                        <p><strong>Fin:</strong> {new Date(prochainePeriode.dateFin).toLocaleString('fr-FR')}</p>
+                                    </div>
+                                )}
+                                {upcomingPeriodes.length > 1 && (
+                                    <div className="next-periodes-list">
+                                        <h4>Autres périodes planifiées</h4>
+                                        {upcomingPeriodes.slice(1).map((p) => (
+                                            <div key={p.id} className="next-periode-item">
+                                                <strong>{p.nom}</strong> : {new Date(p.dateDebut).toLocaleString('fr-FR')} → {new Date(p.dateFin).toLocaleString('fr-FR')}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                                 <button 
                                     className="btn-primary"
                                     onClick={() => setActiveTab('create')}
                                 >
                                     Créer une nouvelle période
+                                </button>
+                                <button
+                                    className="btn-secondary"
+                                    style={{ marginLeft: '10px' }}
+                                    onClick={() => setActiveTab('history')}
+                                >
+                                    Voir l'historique
                                 </button>
                             </div>
                         )}
@@ -143,49 +270,120 @@ function GestionPeriodes() {
                 {activeTab === 'create' && (
                     <div className="tab-content">
                         <div className="create-periode-section">
-                            <h3>Créer une Nouvelle Période</h3>
-                            <form onSubmit={handleCreatePeriode} className="periode-form">
-                                <div className="form-group">
-                                    <label>Nom de la période</label>
-                                    <input 
-                                        value={nouvellePeriode.nom}
-                                        onChange={e => setNouvellePeriode({...nouvellePeriode, nom: e.target.value})}
-                                        placeholder="Ex: Réclamations Semestre 2 - 2024"
-                                        required
-                                    />
+                            <div className="periode-create-header">
+                                <h3>Creer une Nouvelle Periode</h3>
+                                <p className="periode-create-subtitle">
+                                    Configurez une fenetre de reclamation de maximum 72 heures.
+                                </p>
+                            </div>
+
+                            {hasCurrentActivePeriod && (
+                                <div className="periode-create-alert">
+                                    Une periode est actuellement ouverte ({periodeOuverte.nom}). Vous pouvez planifier la suivante, mais sans chevauchement.
                                 </div>
-                                <div className="form-row">
+                            )}
+
+                            <div className="quick-duration-row">
+                                <span>Pre-remplissage rapide :</span>
+                                <button type="button" className="btn-small" onClick={() => applyQuickDuration(24)}>24h</button>
+                                <button type="button" className="btn-small" onClick={() => applyQuickDuration(48)}>48h</button>
+                                <button type="button" className="btn-small" onClick={() => applyQuickDuration(72)}>72h</button>
+                            </div>
+
+                            <div className="periode-create-layout">
+                                <form onSubmit={handleCreatePeriode} className="periode-form periode-create-form">
                                     <div className="form-group">
-                                        <label>Date de début</label>
-                                        <input 
-                                            type="datetime-local"
-                                            value={nouvellePeriode.dateDebut}
-                                            onChange={e => setNouvellePeriode({...nouvellePeriode, dateDebut: e.target.value})}
+                                        <label>Nom de la periode</label>
+                                        <input
+                                            value={nouvellePeriode.nom}
+                                            onChange={e => setNouvellePeriode({ ...nouvellePeriode, nom: e.target.value })}
+                                            placeholder="Ex: Reclamations Semestre 2 - 2026"
+                                            className={createAttempted && !nouvellePeriode.nom.trim() ? 'input-error' : ''}
                                             required
                                         />
                                     </div>
-                                    <div className="form-group">
-                                        <label>Date de fin (max 3 jours)</label>
-                                        <input 
-                                            type="datetime-local"
-                                            value={nouvellePeriode.dateFin}
-                                            onChange={e => setNouvellePeriode({...nouvellePeriode, dateFin: e.target.value})}
-                                            required
-                                        />
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Date de debut</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={nouvellePeriode.dateDebut}
+                                                min={formatDateTimeLocal(now)}
+                                                onChange={e => setNouvellePeriode({ ...nouvellePeriode, dateDebut: e.target.value })}
+                                                className={createAttempted && isStartInPast ? 'input-error' : ''}
+                                                required
+                                            />
+                                            {createAttempted && isStartInPast && (
+                                                <p className="field-error">La date de debut doit etre dans le futur.</p>
+                                            )}
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Date de fin (max 72h)</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={nouvellePeriode.dateFin}
+                                                min={nouvellePeriode.dateDebut || formatDateTimeLocal(now)}
+                                                onChange={e => setNouvellePeriode({ ...nouvellePeriode, dateFin: e.target.value })}
+                                                className={createAttempted && (isEndBeforeStart || exceedsMaxDuration) ? 'input-error' : ''}
+                                                required
+                                            />
+                                            {createAttempted && isEndBeforeStart && (
+                                                <p className="field-error">La date de fin doit etre apres la date de debut.</p>
+                                            )}
+                                            {createAttempted && exceedsMaxDuration && (
+                                                <p className="field-error">La duree d'ouverture ne peut pas depasser 72 heures.</p>
+                                            )}
+                                        </div>
                                     </div>
+                                    <div className="form-group">
+                                        <label>Description (optionnel)</label>
+                                        <textarea
+                                            value={nouvellePeriode.description}
+                                            maxLength={500}
+                                            onChange={e => setNouvellePeriode({ ...nouvellePeriode, description: e.target.value })}
+                                            placeholder="Information affichee aux etudiants"
+                                        />
+                                        <div className="form-meta">
+                                            <p className="field-hint">Soyez precis: periode, niveau, consignes de justificatif.</p>
+                                            <span className="char-count">{nouvellePeriode.description.length}/500</span>
+                                        </div>
+                                    </div>
+                                    {createAttempted && creationBlockingReason && (
+                                        <p className="field-error">{creationBlockingReason}</p>
+                                    )}
+                                    <div className="periode-form-actions">
+                                        <button type="button" className="btn-secondary" onClick={() => setNouvellePeriode({ nom: '', dateDebut: '', dateFin: '', description: '' })}>
+                                            Reinitialiser
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="btn-primary"
+                                            disabled={createLoading || Boolean(creationBlockingReason)}
+                                        >
+                                            {createLoading ? 'Creation...' : 'Creer la periode'}
+                                        </button>
+                                    </div>
+                                </form>
+
+                                <div className="periode-preview-card">
+                                    <h4>Apercu avant creation</h4>
+                                    <p><strong>Nom:</strong> {nouvellePeriode.nom.trim() || '-'}</p>
+                                    <p><strong>Debut:</strong> {startDate ? startDate.toLocaleString('fr-FR') : '-'}</p>
+                                    <p><strong>Fin:</strong> {endDate ? endDate.toLocaleString('fr-FR') : '-'}</p>
+                                    <p><strong>Duree:</strong> {durationHours != null ? `${durationHours.toFixed(1)}h` : '-'}</p>
+                                    <p>
+                                        <strong>Statut estime:</strong>{' '}
+                                        {overlappingActivePeriode
+                                            ? 'Conflit de chevauchement'
+                                            : startDate && endDate && !isEndBeforeStart && !isStartInPast && !exceedsMaxDuration
+                                                ? 'Planifiable'
+                                                : 'Incomplet'}
+                                    </p>
+                                    {nouvellePeriode.description.trim() && (
+                                        <p className="preview-description"><strong>Description:</strong> {nouvellePeriode.description.trim()}</p>
+                                    )}
                                 </div>
-                                <div className="form-group">
-                                    <label>Description (optionnel)</label>
-                                    <textarea 
-                                        value={nouvellePeriode.description}
-                                        onChange={e => setNouvellePeriode({...nouvellePeriode, description: e.target.value})}
-                                        placeholder="Information pour les étudiants"
-                                    />
-                                </div>
-                                <button type="submit" className="btn-primary">
-                                    Créer la période
-                                </button>
-                            </form>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -198,8 +396,8 @@ function GestionPeriodes() {
                                 <div className="empty">Aucune période créée</div>
                             ) : (
                                 <div className="periodes-list">
-                                    {periodes.map(p => (
-                                        <div key={p.id} className={`periode-card ${p.active ? 'active' : 'inactive'}`}>
+                                    {periodesAvecStatut.map(p => (
+                                        <div key={p.id} className={`periode-card ${p.periodeStatus}`}>
                                             <div className="periode-info">
                                                 <h4>{p.nom}</h4>
                                                 <div className="periode-dates">
@@ -208,8 +406,8 @@ function GestionPeriodes() {
                                                 {p.description && <div className="periode-description">{p.description}</div>}
                                             </div>
                                             <div className="periode-actions">
-                                                <span className={`status ${p.active ? 'status-acceptee' : 'status-refusee'}`}>
-                                                    {p.active ? 'Active' : 'Fermée'}
+                                                <span className={`status ${getPeriodeStatusClass(p.periodeStatus)}`}>
+                                                    {getPeriodeStatusLabel(p.periodeStatus)}
                                                 </span>
                                                 {p.active && (
                                                     <button 
@@ -232,7 +430,7 @@ function GestionPeriodes() {
                     </div>
                 )}
             </div>
-            <NotificationContainer notifications={useNotifications().notifications} />
+            <NotificationContainer notifications={notifications} />
         </div>
     );
 }

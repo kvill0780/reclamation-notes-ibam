@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -22,4 +23,8 @@ public interface PeriodeReclamationRepository extends JpaRepository<PeriodeRecla
      */
     @Query("SELECT COUNT(p) > 0 FROM PeriodeReclamation p WHERE p.active = true AND p.dateDebut <= :maintenant AND p.dateFin > :maintenant")
     boolean existePeriodeActive(LocalDateTime maintenant);
+
+    boolean existsByActiveTrueAndDateDebutLessThanAndDateFinGreaterThan(LocalDateTime dateFin, LocalDateTime dateDebut);
+
+    List<PeriodeReclamation> findAllByOrderByDateDebutDesc();
 }

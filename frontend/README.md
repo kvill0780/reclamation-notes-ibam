@@ -1,63 +1,56 @@
-# Frontend - Logiciel de Réclamations IBAM
+# Frontend - Réclamations IBAM
 
-Application React pour la gestion des réclamations de notes à l'IBAM.
+Interface React de gestion des réclamations de notes.
 
-## 🚀 Installation
+## Démarrage
 
-1. Installer les dépendances :
 ```bash
 npm install
-```
-
-2. Démarrer le serveur de développement :
-```bash
 npm run dev
 ```
 
-L'application sera accessible sur `http://localhost:3000`
+Frontend: `http://localhost:3000`
 
-## 📋 Fonctionnalités
+## Configuration API
 
-### Rôles disponibles
+Le client HTTP est défini dans `src/services/api.js` avec:
 
-- **Étudiant (ROLE_ETUDIANT)**
-  - Consulter ses réclamations
-  - Créer une nouvelle réclamation
+- `baseURL: 'http://localhost:8080'`
+- Intercepteur JWT (`Authorization: Bearer ...`)
+- Redirection vers `/login` sur `401` hors endpoint de login
 
-- **Enseignant (ROLE_ENSEIGNANT)**
-  - Consulter les réclamations imputées
-  - Analyser une réclamation (accepter/refuser)
+## Fonctionnalités par rôle
 
-- **Scolarité (ROLE_SCOLARITE)**
-  - Consulter toutes les réclamations
-  - Vérifier la recevabilité
-  - Appliquer les décisions
+- Étudiant (`ROLE_ETUDIANT`)
+- Consulter ses notes publiées
+- Soumettre une réclamation (description, note attendue, justificatif)
 
-- **Directeur Académique (ROLE_DA)**
-  - Consulter toutes les réclamations
-  - Imputer une réclamation à un enseignant
-  - Imputation automatique
+- Enseignant (`ROLE_ENSEIGNANT`)
+- Voir les réclamations imputées
+- Analyser une réclamation (accepter/refuser avec commentaire)
 
-## 🔧 Configuration
+- Scolarité (`ROLE_SCOLARITE`)
+- Vérifier la recevabilité
+- Appliquer les décisions
 
-L'URL de l'API est configurée dans `src/services/api.js` :
-```javascript
-const API_BASE_URL = 'http://localhost:8080'
-```
+- DA (`ROLE_DA`)
+- Imputer les réclamations
+- Créer/fermer des périodes de réclamation
+- Consulter l’historique des périodes
 
-Modifiez cette valeur si votre API backend est sur un autre port ou domaine.
+## UX et erreurs
 
-## 📝 Notes importantes
+- En cas d’échec de login (email inconnu ou mauvais mot de passe), l’écran ne recharge plus brutalement.
+- Le message affiché est: `Identifiant ou mot de passe invalide`.
+- Les erreurs API sont centralisées via `src/utils/errorHandler.js`.
 
-- L'authentification utilise des tokens JWT stockés dans le localStorage
-- L'ID utilisateur doit être récupéré depuis la réponse de l'API de login (actuellement, un placeholder est utilisé)
-- Assurez-vous que le backend API est démarré sur le port 8080 avant d'utiliser l'application
+## Scripts
 
-## 🛠️ Scripts disponibles
+- `npm run dev` : serveur de développement
+- `npm run build` : build production
+- `npm run preview` : prévisualisation build
+- `npm run lint` : lint ESLint
 
-- `npm run dev` - Démarrer le serveur de développement
-- `npm run build` - Construire l'application pour la production
-- `npm run preview` - Prévisualiser la build de production
-- `npm run lint` - Lancer le linter ESLint
+## Pré-requis
 
-
+Le backend Spring Boot doit être lancé sur `http://localhost:8080`.

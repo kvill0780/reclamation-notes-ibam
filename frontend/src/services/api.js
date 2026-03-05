@@ -28,7 +28,12 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         ErrorHandler.log(error, 'Response interceptor');
-        if (error.response?.status === 401) {
+        const status = error.response?.status;
+        const requestUrl = error.config?.url || '';
+        const isLoginRequest = requestUrl.includes('/api/auth/login');
+
+        // Keep inline error on login form instead of forcing a full page reload.
+        if (status === 401 && !isLoginRequest) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.href = '/login';
